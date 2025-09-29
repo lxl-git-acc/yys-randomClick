@@ -12,7 +12,7 @@ class RandomClicker:
     def __init__(self, root):
         self.root = root
         self.root.title("随机鼠标点击器")
-        self.root.geometry("500x600")  # 增加窗口高度
+        self.root.geometry("500x650")  # 增加窗口高度
         self.root.resizable(True, True)  # 允许窗口调整大小
         self.root.configure(bg="#f0f0f0")
         
@@ -33,7 +33,7 @@ class RandomClicker:
         main_frame.pack(fill=tk.BOTH, expand=True)
         
         # 创建标题
-        title_label = ttk.Label(main_frame, text="随机鼠标点击器V1.0.1", font=("SimHei", 16, "bold"))
+        title_label = ttk.Label(main_frame, text="随机鼠标点击器V1.0.5", font=("SimHei", 16, "bold"))
         title_label.pack(pady=10)
         
         # 创建设置区域
@@ -42,7 +42,7 @@ class RandomClicker:
         
         # 最小间隔设置
         ttk.Label(settings_frame, text="最小时间间隔(秒):").grid(row=0, column=0, sticky=tk.W, pady=5)
-        self.min_interval_var = tk.StringVar(value="0.5")
+        self.min_interval_var = tk.StringVar(value="1.0")
         ttk.Entry(settings_frame, textvariable=self.min_interval_var, width=10).grid(row=0, column=1, sticky=tk.W, pady=5)
         
         # 最大间隔设置
@@ -67,12 +67,24 @@ class RandomClicker:
         ttk.Entry(settings_frame, textvariable=self.interval_count_var, width=5).grid(row=4, column=1, sticky=tk.W, pady=5)
         
         ttk.Label(settings_frame, text="蘸豆时长(秒):").grid(row=4, column=2, sticky=tk.W, pady=5, padx=(20, 0))
-        self.fixed_interval_var = tk.StringVar(value="0.0")
+        self.fixed_interval_var = tk.StringVar(value="20.0")
         ttk.Entry(settings_frame, textvariable=self.fixed_interval_var, width=10).grid(row=4, column=3, sticky=tk.W, pady=5)
+        
+        # 休息设置
+        ttk.Label(settings_frame, text="每X轮后休息(轮):").grid(row=5, column=0, sticky=tk.W, pady=5)
+        self.rest_interval_var = tk.StringVar(value="100")
+        ttk.Entry(settings_frame, textvariable=self.rest_interval_var, width=5).grid(row=5, column=1, sticky=tk.W, pady=5)
+        
+        ttk.Label(settings_frame, text="休息时长(秒):").grid(row=5, column=2, sticky=tk.W, pady=5, padx=(20, 0))
+        self.rest_duration_var = tk.StringVar(value="300.0")
+        ttk.Entry(settings_frame, textvariable=self.rest_duration_var, width=10).grid(row=5, column=3, sticky=tk.W, pady=5)
+        
+        # 为了避免控件被遮挡，将随机操作设置放在单独的一行
+        ttk.Label(settings_frame, text="").grid(row=6, column=0)  # 添加空行分隔
         
         # 随机操作设置
         self.random_action_var = tk.BooleanVar(value=False)
-        ttk.Checkbutton(settings_frame, text="启用点击后随机操作", variable=self.random_action_var).grid(row=5, column=0, columnspan=2, sticky=tk.W, pady=5)
+        ttk.Checkbutton(settings_frame, text="启用点击后随机操作", variable=self.random_action_var).grid(row=7, column=0, columnspan=4, sticky=tk.W, pady=5)
         
         # 区域选择按钮
         region_frame = ttk.LabelFrame(main_frame, text="点击区域", padding="10")
@@ -178,6 +190,16 @@ class RandomClicker:
             if interval_count < 1:
                 messagebox.showerror("参数错误", "点击次数必须大于0！")
                 return
+            
+            # 获取休息设置参数
+            rest_interval = int(self.rest_interval_var.get())
+            rest_duration = float(self.rest_duration_var.get())
+            if rest_interval < 1:
+                messagebox.showerror("参数错误", "休息间隔轮数必须大于0！")
+                return
+            if rest_duration < 0:
+                messagebox.showerror("参数错误", "休息时长不能为负数！")
+                return
         except ValueError:
             messagebox.showerror("错误", "请输入有效的数值")
             return
@@ -200,7 +222,7 @@ class RandomClicker:
         
         self.click_thread = threading.Thread(
             target=self.random_click, 
-            args=(min_interval, max_interval, fixed_interval, click_count, interval_count)
+            args=(min_interval, max_interval, fixed_interval, click_count, interval_count, rest_interval, rest_duration)
         )
         self.click_thread.daemon = True
         self.click_thread.start()
@@ -212,9 +234,10 @@ class RandomClicker:
         self.stop_button.config(state=tk.DISABLED)
         self.status_var.set("已停止")
     
-    def random_click(self, min_interval, max_interval, fixed_interval, click_count, interval_count):
+    def random_click(self, min_interval, max_interval, fixed_interval, click_count, interval_count, rest_interval, rest_duration):
         """执行随机点击"""
         count = 0
+        round_count = 0  # 记录完成的轮数
         
         while self.is_running and (click_count == -1 or count < click_count):
             # 生成随机位置
@@ -275,10 +298,33 @@ class RandomClicker:
                     while wait_time < fixed_interval and self.is_running:
                         time.sleep(0.1)
                         wait_time += 0.1
-                          
+                         
                     # 检查是否在固定等待期间被停止
                     if not self.is_running:
                         break
+                        
+                    # 更新轮数计数
+                    round_count += 1
+                    
+                    # 检查是否需要休息
+                    if rest_duration > 0 and (round_count % rest_interval == 0):
+                        self.root.after(0, lambda: self.status_var.set(f"休息中... 剩余{rest_duration:.1f}秒"))
+                        wait_time = 0
+                        while wait_time < rest_duration and self.is_running:
+                            time.sleep(0.1)
+                            wait_time += 0.1
+                            # 更新剩余休息时间显示
+                            if self.is_running:
+                                remaining = rest_duration - wait_time
+                                self.root.after(0, lambda r=remaining: self.status_var.set(f"休息中... 剩余{r:.1f}秒"))
+                        
+                        # 检查是否在休息期间被停止
+                        if not self.is_running:
+                            break
+                        
+                        # 休息结束，恢复状态显示
+                        if self.is_running:
+                            self.root.after(0, lambda c=count: self.status_var.set(f"已点击 {c} 次"))
             except Exception as e:
                 print(f"点击出错: {e}")
                 break

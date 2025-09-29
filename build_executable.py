@@ -17,7 +17,7 @@ os.environ['PYTHONIOENCODING'] = 'utf-8'
 
 # ========== 用户可配置部分 ==========
 # 版本号（用户可以自行修改）
-VERSION = '1.0.1'
+VERSION = '1.0.5'
 
 # 项目根目录
 PROJECT_ROOT = Path(__file__).parent
